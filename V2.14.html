@@ -90,27 +90,27 @@
         <!-- 首页 -->
         <div id="page-home" class="page">
             <!-- 轮播图 -->
-            <div class="relative h-96 rounded-xl overflow-hidden mb-8">
+            <div class="relative h-64 md:h-96 rounded-xl overflow-hidden mb-8">
                 <div class="carousel-container h-full">
                     <div class="carousel-item active h-full">
                         <img src="https://aka.doubaocdn.com/s/YSB81wd1j3" alt="江西公交站点" class="w-full h-full object-cover">
-                        <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-6">
-                            <h3 class="text-white text-xl font-bold">菜农专线 便民出行</h3>
-                            <p class="text-white/80">南昌县向塘镇便民公交服务</p>
+                        <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4 md:p-6">
+                            <h3 class="text-white text-lg md:text-xl font-bold">菜农专线 便民出行</h3>
+                            <p class="text-white/80 text-sm">南昌县向塘镇便民公交服务</p>
                         </div>
                     </div>
                     <div class="carousel-item hidden h-full">
                         <img src="https://aka.doubaocdn.com/s/G3i31wd1j3" alt="乡村公交" class="w-full h-full object-cover">
-                        <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-6">
-                            <h3 class="text-white text-xl font-bold">村村通公交 服务到家门</h3>
-                            <p class="text-white/80">武宁县上汤乡梅溪村公交站点</p>
+                        <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4 md:p-6">
+                            <h3 class="text-white text-lg md:text-xl font-bold">村村通公交 服务到家门</h3>
+                            <p class="text-white/80 text-sm">武宁县上汤乡梅溪村公交站点</p>
                         </div>
                     </div>
                     <div class="carousel-item hidden h-full">
                         <img src="https://aka.doubaocdn.com/s/AT2E1wd1j8" alt="新能源公交" class="w-full h-full object-cover">
-                        <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-6">
-                            <h3 class="text-white text-xl font-bold">新能源公交 绿色出行</h3>
-                            <p class="text-white/80">德安县城乡公交一体化升级</p>
+                        <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4 md:p-6">
+                            <h3 class="text-white text-lg md:text-xl font-bold">新能源公交 绿色出行</h3>
+                            <p class="text-white/80 text-sm">德安县城乡公交一体化升级</p>
                         </div>
                     </div>
                 </div>
@@ -268,7 +268,8 @@
                 </form>
             </div>
 
-            <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+            <!-- 线路列表 - 桌面端表格视图 -->
+            <div class="hidden md:block bg-white rounded-xl shadow-sm overflow-hidden">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
@@ -286,6 +287,11 @@
                         <!-- 动态加载 -->
                     </tbody>
                 </table>
+            </div>
+            
+            <!-- 线路列表 - 移动端卡片视图 -->
+            <div id="lines-cards-container" class="md:hidden space-y-4">
+                <!-- 动态加载 -->
             </div>
             
             <!-- 线路详情弹窗 -->
@@ -658,6 +664,9 @@
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold text-neutral">管理中心</h2>
                 <div class="flex gap-4">
+                    <button onclick="syncAllToCloud()" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm flex items-center gap-2" id="sync-btn">
+                        <i class="fa fa-cloud-upload"></i>同步到云端
+                    </button>
                     <span class="text-sm text-gray-500">当前角色：<span class="font-medium text-primary">管理员</span></span>
                 </div>
             </div>
@@ -1686,6 +1695,49 @@
         }
 
         // 检查车型提交按钮是否可用
+        // 云端API基础URL
+        const CLOUD_API_BASE = 'https://api.example.com/bus';
+
+        // 上传数据到云端
+        async function uploadToCloud(endpoint, data) {
+            try {
+                const response = await fetch(`${CLOUD_API_BASE}/${endpoint}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('auth_token') || 'demo_token'}`
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                if (!response.ok) {
+                    console.warn('云端上传失败:', response.statusText);
+                    return false;
+                }
+                
+                const result = await response.json();
+                console.log('云端上传成功:', result);
+                return true;
+            } catch (error) {
+                console.warn('云端上传异常:', error.message);
+                return false;
+            }
+        }
+
+        // 批量上传所有数据到云端
+        async function syncAllToCloud() {
+            const data = {
+                lines: JSON.parse(localStorage.getItem('bus_lines') || '[]'),
+                vehicles: JSON.parse(localStorage.getItem('bus_vehicles') || '[]'),
+                vehicleModels: JSON.parse(localStorage.getItem('bus_vehicle_models') || '[]'),
+                lineImages: JSON.parse(localStorage.getItem('line_images') || '[]'),
+                trips: JSON.parse(localStorage.getItem('bus_trips') || '[]'),
+                syncTime: new Date().toISOString()
+            };
+            
+            return await uploadToCloud('sync', data);
+        }
+
         function checkVehicleModelSubmitEnabled() {
             const modelName = document.querySelector('#vehicle-model-upload-form input[name="modelName"]').value;
             const brand = document.querySelector('#vehicle-model-upload-form input[name="brand"]').value;
@@ -1772,6 +1824,9 @@
                 lines.push(lineData);
                 localStorage.setItem('bus_lines', JSON.stringify(lines));
                 
+                // 上传到云端
+                uploadToCloud('lines', lineData);
+                
                 showToast('线路信息提交成功');
                 hideLineForm();
                 this.reset();
@@ -1808,6 +1863,9 @@
                 const vehicles = JSON.parse(localStorage.getItem('bus_vehicles'));
                 vehicles.push(vehicleData);
                 localStorage.setItem('bus_vehicles', JSON.stringify(vehicles));
+                
+                // 上传到云端
+                uploadToCloud('vehicles', vehicleData);
                 
                 showToast('车辆信息提交成功');
                 hideVehicleForm();
@@ -1850,6 +1908,9 @@
                 const lineImages = JSON.parse(localStorage.getItem('line_images') || '[]');
                 lineImages.push(imageData);
                 localStorage.setItem('line_images', JSON.stringify(lineImages));
+                
+                // 上传到云端
+                uploadToCloud('lineImages', imageData);
                 
                 showToast('图片上传成功' + (isAdmin ? '' : '，等待审核'));
                 
@@ -1902,6 +1963,9 @@
                 trips.push(tripData);
                 localStorage.setItem('bus_trips', JSON.stringify(trips));
                 
+                // 上传到云端
+                uploadToCloud('trips', tripData);
+                
                 // 自动匹配车辆到线路
                 autoMatchVehicleToLine(plateNumber, lineId);
                 
@@ -1949,6 +2013,9 @@
                 const vehicleModels = JSON.parse(localStorage.getItem('bus_vehicle_models') || '[]');
                 vehicleModels.push(modelData);
                 localStorage.setItem('bus_vehicle_models', JSON.stringify(vehicleModels));
+                
+                // 上传到云端
+                uploadToCloud('vehicleModels', modelData);
                 
                 showToast('车型信息提交成功' + (isAdmin ? '' : '，等待审核'));
                 
@@ -2127,10 +2194,11 @@
         function loadLinesList() {
             const lines = JSON.parse(localStorage.getItem('bus_lines'));
             const lineImages = JSON.parse(localStorage.getItem('line_images') || '[]');
-            const container = document.getElementById('lines-table-body');
+            const tableContainer = document.getElementById('lines-table-body');
+            const cardsContainer = document.getElementById('lines-cards-container');
             
-            container.innerHTML = lines.map(line => {
-                // 获取该线路的图片
+            // 桌面端表格视图
+            tableContainer.innerHTML = lines.map(line => {
                 const images = lineImages.filter(img => img.lineId === line.id && img.status === 'approved');
                 const hasImages = images.length > 0 || line.image;
                 
@@ -2164,6 +2232,47 @@
                         </button>
                     </td>
                 </tr>
+            `}).join('');
+            
+            // 移动端卡片视图
+            cardsContainer.innerHTML = lines.map(line => {
+                const images = lineImages.filter(img => img.lineId === line.id && img.status === 'approved');
+                const hasImages = images.length > 0 || line.image;
+                
+                return `
+                <div class="bg-white rounded-xl shadow-sm p-4">
+                    <div class="flex items-start justify-between mb-3">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-lg font-bold text-neutral">${line.lineName}</span>
+                                <span class="px-2 py-0.5 text-xs font-semibold rounded-full ${line.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
+                                    ${line.status === 'approved' ? '已发布' : '待审核'}
+                                </span>
+                            </div>
+                            <p class="text-sm text-gray-500 mt-1">${line.lineCode}</p>
+                        </div>
+                    </div>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex items-center text-gray-600">
+                            <i class="fa fa-map-marker text-primary mr-2"></i>
+                            <span>${line.startStation} → ${line.endStation}</span>
+                        </div>
+                        <div class="flex items-center text-gray-600">
+                            <i class="fa fa-clock-o text-primary mr-2"></i>
+                            <span>${line.firstTime} - ${line.lastTime}</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center text-gray-600">
+                                <i class="fa fa-ticket text-primary mr-2"></i>
+                                <span>¥${line.price}</span>
+                            </div>
+                            ${hasImages ? `<span class="text-xs text-gray-400">${images.length + (line.image ? 1 : 0)}张图片</span>` : ''}
+                        </div>
+                    </div>
+                    <button onclick="showLineDetail(${line.id})" class="mt-4 w-full py-2 bg-primary text-white rounded-lg flex items-center justify-center gap-2">
+                        <i class="fa fa-eye"></i>查看详情
+                    </button>
+                </div>
             `}).join('');
         }
         
