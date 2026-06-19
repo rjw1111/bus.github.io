@@ -1695,47 +1695,237 @@
         }
 
         // 检查车型提交按钮是否可用
-        // 云端API基础URL
-        const CLOUD_API_BASE = 'https://api.example.com/bus';
+        // GitHub Pages 数据存储配置
+        const GITHUB_REPO = 'rjw1111/bus.github.io';
+        const DATA_FILE_PATH = 'data/bus_data.json';
+        const GITHUB_API_BASE = 'https://api.github.com';
+        
+        // 获取 GitHub Personal Access Token（从 localStorage 读取）
+        function getGitHubToken() {
+            return localStorage.getItem('github_token') || '';
+        }
 
-        // 上传数据到云端
+        // 上传数据到 GitHub（使用 GitHub API）
         async function uploadToCloud(endpoint, data) {
+            const token = getGitHubToken();
+            
+            if (!token) {
+                console.warn('未配置 GitHub Token，跳过云端上传');
+                return false;
+            }
+            
             try {
-                const response = await fetch(`${CLOUD_API_BASE}/${endpoint}`, {
-                    method: 'POST',
+                // 获取当前数据文件的 SHA
+                const getResponse = await fetch(`${GITHUB_API_BASE}/repos/${GITHUB_REPO}/contents/${DATA_FILE_PATH}`, {
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('auth_token') || 'demo_token'}`
-                    },
-                    body: JSON.stringify(data)
+                        'Authorization': `token ${token}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
                 });
                 
-                if (!response.ok) {
-                    console.warn('云端上传失败:', response.statusText);
+                let sha = '';
+                if (getResponse.ok) {
+                    const existingData = await getResponse.json();
+                    sha = existingData.sha;
+                }
+                
+                // 获取当前所有数据
+                const currentData = await getAllData();
+                
+                // 更新对应的数据
+                currentData[endpoint] = currentData[endpoint] || [];
+                currentData[endpoint].push(data);
+                currentData.lastSyncTime = new Date().toISOString();
+                
+                // 上传到 GitHub
+                const content = btoa(JSON.stringify(currentData, null, 2));
+                
+                const putResponse = await fetch(`${GITHUB_API_BASE}/repos/${GITHUB_REPO}/contents/${DATA_FILE_PATH}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${token}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: `Update ${endpoint} - ${new Date().toISOString()}`,
+                        content: content,
+                        sha: sha || undefined,
+                        branch: 'main'
+                    })
+                });
+                
+                if (!putResponse.ok) {
+                    const error = await putResponse.json();
+                    console.warn('GitHub 上传失败:', error.message || putResponse.statusText);
                     return false;
                 }
                 
-                const result = await response.json();
-                console.log('云端上传成功:', result);
+                console.log('GitHub 上传成功');
                 return true;
             } catch (error) {
-                console.warn('云端上传异常:', error.message);
+                console.warn('GitHub 上传异常:', error.message);
                 return false;
             }
         }
 
-        // 批量上传所有数据到云端
-        async function syncAllToCloud() {
-            const data = {
+        // 获取所有数据
+        async function getAllData() {
+            const token = getGitHubToken();
+            
+            try {
+                const response = await fetch(`${GITHUB_API_BASE}/repos/${GITHUB_REPO}/contents/${DATA_FILE_PATH}`, {
+                    headers: {
+                        'Authorization': token ? `token ${token}` : undefined,
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const content = atob(data.content);
+                    return JSON.parse(content);
+                } else if (response.status === 404) {
+                    // 文件不存在，返回初始数据结构
+                    return {
+                        lines: [],
+                        vehicles: [],
+                        vehicleModels: [],
+                        lineImages: [],
+                        trips: [],
+                        lastSyncTime: null
+                    };
+                }
+            } catch (error) {
+                console.warn('获取云端数据失败:', error.message);
+            }
+            
+            // 返回本地数据作为备份
+            return {
                 lines: JSON.parse(localStorage.getItem('bus_lines') || '[]'),
                 vehicles: JSON.parse(localStorage.getItem('bus_vehicles') || '[]'),
                 vehicleModels: JSON.parse(localStorage.getItem('bus_vehicle_models') || '[]'),
                 lineImages: JSON.parse(localStorage.getItem('line_images') || '[]'),
                 trips: JSON.parse(localStorage.getItem('bus_trips') || '[]'),
-                syncTime: new Date().toISOString()
+                lastSyncTime: new Date().toISOString()
             };
+        }
+
+        // 批量同步所有数据到 GitHub
+        async function syncAllToCloud() {
+            const token = getGitHubToken();
             
-            return await uploadToCloud('sync', data);
+            if (!token) {
+                showToast('请先配置 GitHub Token');
+                // 显示 Token 配置弹窗
+                showGitHubTokenModal();
+                return false;
+            }
+            
+            showToast('正在同步到云端...');
+            
+            try {
+                const data = {
+                    lines: JSON.parse(localStorage.getItem('bus_lines') || '[]'),
+                    vehicles: JSON.parse(localStorage.getItem('bus_vehicles') || '[]'),
+                    vehicleModels: JSON.parse(localStorage.getItem('bus_vehicle_models') || '[]'),
+                    lineImages: JSON.parse(localStorage.getItem('line_images') || '[]'),
+                    trips: JSON.parse(localStorage.getItem('bus_trips') || '[]'),
+                    lastSyncTime: new Date().toISOString()
+                };
+                
+                const content = btoa(JSON.stringify(data, null, 2));
+                
+                // 获取当前文件 SHA
+                let sha = '';
+                const getResponse = await fetch(`${GITHUB_API_BASE}/repos/${GITHUB_REPO}/contents/${DATA_FILE_PATH}`, {
+                    headers: {
+                        'Authorization': `token ${token}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                });
+                
+                if (getResponse.ok) {
+                    const existingData = await getResponse.json();
+                    sha = existingData.sha;
+                }
+                
+                const response = await fetch(`${GITHUB_API_BASE}/repos/${GITHUB_REPO}/contents/${DATA_FILE_PATH}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${token}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: `Full sync - ${new Date().toISOString()}`,
+                        content: content,
+                        sha: sha || undefined,
+                        branch: 'main'
+                    })
+                });
+                
+                if (response.ok) {
+                    showToast('同步成功！');
+                    return true;
+                } else {
+                    const error = await response.json();
+                    showToast('同步失败: ' + (error.message || '未知错误'));
+                    return false;
+                }
+            } catch (error) {
+                showToast('同步失败: ' + error.message);
+                console.error('同步异常:', error);
+                return false;
+            }
+        }
+
+        // 显示 GitHub Token 配置弹窗
+        function showGitHubTokenModal() {
+            const modal = `
+                <div id="github-token-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div class="bg-white rounded-xl p-6 w-full max-w-md">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-bold">配置 GitHub Token</h3>
+                            <button onclick="hideGitHubTokenModal()" class="text-gray-400 hover:text-gray-600">
+                                <i class="fa fa-times"></i>
+                            </button>
+                        </div>
+                        <p class="text-sm text-gray-500 mb-4">
+                            请输入您的 GitHub Personal Access Token（需要 repo 权限）
+                        </p>
+                        <input type="password" id="github-token-input" 
+                               placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                               class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 mb-4">
+                        <div class="flex gap-4">
+                            <button onclick="saveGitHubToken()" class="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90">
+                                保存
+                            </button>
+                            <button onclick="hideGitHubTokenModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
+                                取消
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modal);
+        }
+
+        // 隐藏 GitHub Token 配置弹窗
+        function hideGitHubTokenModal() {
+            document.getElementById('github-token-modal')?.remove();
+        }
+
+        // 保存 GitHub Token
+        function saveGitHubToken() {
+            const token = document.getElementById('github-token-input').value.trim();
+            if (token) {
+                localStorage.setItem('github_token', token);
+                showToast('Token 已保存');
+                hideGitHubTokenModal();
+            } else {
+                showToast('请输入 Token');
+            }
         }
 
         function checkVehicleModelSubmitEnabled() {
