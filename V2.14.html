@@ -1720,17 +1720,16 @@
         }
 
         // 检查车型提交按钮是否可用
-        // GitHub Pages 数据存储配置
-        const GITHUB_REPO = 'rjw1111/bus.github.io';
-        const DATA_FILE_PATH = 'data/bus_data.json';
-        const GITHUB_API_BASE = 'https://api.github.com';
+        // GitHub Gist 数据存储配置（使用Gist API，避免CORS问题）
+        const GITHUB_GIST_API = 'https://api.github.com/gists';
+        const GIST_ID_KEY = 'bus_gist_id'; // localStorage key for Gist ID
         
         // 获取 GitHub Personal Access Token（从 localStorage 读取）
         function getGitHubToken() {
             return localStorage.getItem('github_token') || '';
         }
 
-        // 上传数据到 GitHub（使用 GitHub API）
+        // 上传数据到 GitHub Gist
         async function uploadToCloud(endpoint, data) {
             const token = getGitHubToken();
             
@@ -1740,53 +1739,74 @@
             }
             
             try {
-                // 获取当前数据文件的 SHA
-                const getResponse = await fetch(`${GITHUB_API_BASE}/repos/${GITHUB_REPO}/contents/${DATA_FILE_PATH}`, {
-                    headers: {
-                        'Authorization': `token ${token}`,
-                        'Accept': 'application/vnd.github.v3+json'
-                    }
-                });
+                // 获取现有的 Gist ID
+                let gistId = localStorage.getItem(GIST_ID_KEY);
                 
-                let sha = '';
-                if (getResponse.ok) {
-                    const existingData = await getResponse.json();
-                    sha = existingData.sha;
-                }
-                
-                // 获取当前所有数据
+                // 获取当前数据
                 const currentData = await getAllData();
                 
-                // 更新对应的数据
+                // 更新数据
                 currentData[endpoint] = currentData[endpoint] || [];
                 currentData[endpoint].push(data);
                 currentData.lastSyncTime = new Date().toISOString();
                 
-                // 上传到 GitHub
-                const content = btoa(JSON.stringify(currentData, null, 2));
+                const content = JSON.stringify(currentData, null, 2);
                 
-                const putResponse = await fetch(`${GITHUB_API_BASE}/repos/${GITHUB_REPO}/contents/${DATA_FILE_PATH}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': `token ${token}`,
-                        'Accept': 'application/vnd.github.v3+json',
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        message: `Update ${endpoint} - ${new Date().toISOString()}`,
-                        content: content,
-                        sha: sha || undefined,
-                        branch: 'main'
-                    })
-                });
-                
-                if (!putResponse.ok) {
-                    const error = await putResponse.json();
-                    console.warn('GitHub 上传失败:', error.message || putResponse.statusText);
-                    return false;
+                if (gistId) {
+                    // 更新现有 Gist
+                    const updateResponse = await fetch(`${GITHUB_GIST_API}/${gistId}`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Authorization': `token ${token}`,
+                            'Accept': 'application/vnd.github.v3+json',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            description: '公交档案站数据同步',
+                            files: {
+                                'bus_data.json': {
+                                    content: content
+                                }
+                            }
+                        })
+                    });
+                    
+                    if (!updateResponse.ok) {
+                        const error = await updateResponse.json();
+                        console.warn('Gist 更新失败:', error.message || updateResponse.statusText);
+                        return false;
+                    }
+                } else {
+                    // 创建新的 Gist
+                    const createResponse = await fetch(GITHUB_GIST_API, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `token ${token}`,
+                            'Accept': 'application/vnd.github.v3+json',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            description: '公交档案站数据同步',
+                            public: false,
+                            files: {
+                                'bus_data.json': {
+                                    content: content
+                                }
+                            }
+                        })
+                    });
+                    
+                    if (!createResponse.ok) {
+                        const error = await createResponse.json();
+                        console.warn('Gist 创建失败:', error.message || createResponse.statusText);
+                        return false;
+                    }
+                    
+                    const gist = await createResponse.json();
+                    localStorage.setItem(GIST_ID_KEY, gist.id);
                 }
                 
-                console.log('GitHub 上传成功');
+                console.log('GitHub Gist 上传成功');
                 return true;
             } catch (error) {
                 console.warn('GitHub 上传异常:', error.message);
@@ -1797,9 +1817,22 @@
         // 获取所有数据
         async function getAllData() {
             const token = getGitHubToken();
+            const gistId = localStorage.getItem(GIST_ID_KEY);
+            
+            if (!gistId) {
+                // 返回初始数据结构
+                return {
+                    lines: [],
+                    vehicles: [],
+                    vehicleModels: [],
+                    lineImages: [],
+                    trips: [],
+                    lastSyncTime: null
+                };
+            }
             
             try {
-                const response = await fetch(`${GITHUB_API_BASE}/repos/${GITHUB_REPO}/contents/${DATA_FILE_PATH}`, {
+                const response = await fetch(`${GITHUB_GIST_API}/${gistId}`, {
                     headers: {
                         'Authorization': token ? `token ${token}` : undefined,
                         'Accept': 'application/vnd.github.v3+json'
@@ -1807,19 +1840,14 @@
                 });
                 
                 if (response.ok) {
-                    const data = await response.json();
-                    const content = atob(data.content);
-                    return JSON.parse(content);
+                    const gist = await response.json();
+                    const content = gist.files['bus_data.json'];
+                    if (content) {
+                        return JSON.parse(content.content);
+                    }
                 } else if (response.status === 404) {
-                    // 文件不存在，返回初始数据结构
-                    return {
-                        lines: [],
-                        vehicles: [],
-                        vehicleModels: [],
-                        lineImages: [],
-                        trips: [],
-                        lastSyncTime: null
-                    };
+                    // Gist 不存在，清除 ID
+                    localStorage.removeItem(GIST_ID_KEY);
                 }
             } catch (error) {
                 console.warn('获取云端数据失败:', error.message);
@@ -1836,7 +1864,7 @@
             };
         }
 
-        // 批量同步所有数据到 GitHub
+        // 批量同步所有数据到 GitHub Gist
         async function syncAllToCloud() {
             const token = getGitHubToken();
             
@@ -1859,44 +1887,65 @@
                     lastSyncTime: new Date().toISOString()
                 };
                 
-                const content = btoa(JSON.stringify(data, null, 2));
+                let gistId = localStorage.getItem(GIST_ID_KEY);
                 
-                // 获取当前文件 SHA
-                let sha = '';
-                const getResponse = await fetch(`${GITHUB_API_BASE}/repos/${GITHUB_REPO}/contents/${DATA_FILE_PATH}`, {
-                    headers: {
-                        'Authorization': `token ${token}`,
-                        'Accept': 'application/vnd.github.v3+json'
+                if (gistId) {
+                    // 更新现有 Gist
+                    const response = await fetch(`${GITHUB_GIST_API}/${gistId}`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Authorization': `token ${token}`,
+                            'Accept': 'application/vnd.github.v3+json',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            description: '公交档案站数据同步',
+                            files: {
+                                'bus_data.json': {
+                                    content: JSON.stringify(data, null, 2)
+                                }
+                            }
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        showToast('同步成功！');
+                        return true;
+                    } else {
+                        const error = await response.json();
+                        showToast('同步失败: ' + (error.message || '未知错误'));
+                        return false;
                     }
-                });
-                
-                if (getResponse.ok) {
-                    const existingData = await getResponse.json();
-                    sha = existingData.sha;
-                }
-                
-                const response = await fetch(`${GITHUB_API_BASE}/repos/${GITHUB_REPO}/contents/${DATA_FILE_PATH}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': `token ${token}`,
-                        'Accept': 'application/vnd.github.v3+json',
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        message: `Full sync - ${new Date().toISOString()}`,
-                        content: content,
-                        sha: sha || undefined,
-                        branch: 'main'
-                    })
-                });
-                
-                if (response.ok) {
-                    showToast('同步成功！');
-                    return true;
                 } else {
-                    const error = await response.json();
-                    showToast('同步失败: ' + (error.message || '未知错误'));
-                    return false;
+                    // 创建新 Gist
+                    const response = await fetch(GITHUB_GIST_API, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `token ${token}`,
+                            'Accept': 'application/vnd.github.v3+json',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            description: '公交档案站数据同步',
+                            public: false,
+                            files: {
+                                'bus_data.json': {
+                                    content: JSON.stringify(data, null, 2)
+                                }
+                            }
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        const gist = await response.json();
+                        localStorage.setItem(GIST_ID_KEY, gist.id);
+                        showToast('同步成功！');
+                        return true;
+                    } else {
+                        const error = await response.json();
+                        showToast('同步失败: ' + (error.message || '未知错误'));
+                        return false;
+                    }
                 }
             } catch (error) {
                 showToast('同步失败: ' + error.message);
