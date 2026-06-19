@@ -179,11 +179,15 @@
                         </div>
                         <div class="ml-4">
                             <h3 class="text-lg font-bold text-neutral">云端同步 - NCBUS</h3>
-                            <p class="text-sm text-gray-500">同步状态：<span id="sync-status" class="text-gray-600">未连接</span></p>
+                            <p class="text-sm text-gray-500">同步状态：<span id="sync-status" class="text-gray-600">检查中...</span></p>
                             <p class="text-xs text-gray-400 mt-1">上次同步：<span id="last-sync-time">从未同步</span></p>
                         </div>
                     </div>
                     <div class="flex flex-col sm:flex-row gap-3">
+                        <button onclick="showGitHubTokenModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm flex items-center gap-2">
+                            <i class="fa fa-key"></i>
+                            配置 Token
+                        </button>
                         <button onclick="syncAllToCloud()" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm flex items-center gap-2" id="home-sync-btn">
                             <i class="fa fa-cloud-upload"></i>
                             同步到云端
@@ -1778,11 +1782,11 @@
 
         // 检查车型提交按钮是否可用
         // 数据同步配置
-        // 模式选择：'local' = 本地服务器, 'gist' = GitHub Gist
-        const SYNC_MODE = 'local';
-        const LOCAL_SERVER_URL = 'http://localhost:3000'; // 本地服务器地址，部署时请修改为实际服务器地址
+        // 模式选择：'local' = 本地服务器, 'gist' = GitHub Gist（推荐，无需服务器）
+        const SYNC_MODE = 'gist';
+        const LOCAL_SERVER_URL = 'http://localhost:3000'; // 本地服务器地址（仅在 local 模式下使用）
         
-        // GitHub Gist 配置（备用）
+        // GitHub Gist 配置（推荐方案）
         const GITHUB_GIST_API = 'https://api.github.com/gists';
         const GIST_ID_KEY = 'bus_gist_id';
         
@@ -1805,15 +1809,17 @@
                     options.body = JSON.stringify(data);
                 }
                 
+                console.log(`[API请求] ${method} ${LOCAL_SERVER_URL}${endpoint}`);
                 const response = await fetch(`${LOCAL_SERVER_URL}${endpoint}`, options);
                 
                 if (!response.ok) {
-                    throw new Error(`API 请求失败: ${response.status}`);
+                    const errorText = await response.text();
+                    throw new Error(`API 请求失败: ${response.status} - ${errorText}`);
                 }
                 
                 return await response.json();
             } catch (error) {
-                console.error('API 请求错误:', error);
+                console.error('[API请求错误]', error);
                 throw error;
             }
         }
@@ -1871,9 +1877,19 @@
                     lastSyncTime: new Date().toISOString()
                 };
                 
+                console.log('[同步数据]', {
+                    lines: data.lines.length,
+                    vehicles: data.vehicles.length,
+                    vehicleModels: data.vehicleModels.length,
+                    lineImages: data.lineImages.length,
+                    trips: data.trips.length
+                });
+                
                 if (SYNC_MODE === 'local') {
                     // 同步到本地服务器
                     const result = await apiRequest('/api/sync', 'POST', data);
+                    console.log('[同步结果]', result);
+                    
                     if (result.success) {
                         showToast('同步成功！');
                         localStorage.setItem('last_sync_time', new Date().toISOString());
@@ -1894,14 +1910,17 @@
                             updateStats();
                         }
                         return true;
+                    } else {
+                        throw new Error('服务器返回同步失败');
                     }
                 } else {
                     // 同步到 GitHub Gist
                     return await syncToGitHubGist(data);
                 }
             } catch (error) {
+                console.error('[同步异常]', error);
                 showToast('同步失败: ' + error.message);
-                console.error('同步异常:', error);
+                alert('同步失败！\n\n可能原因：\n1. 服务器未启动\n2. 服务器地址配置错误\n3. 网络连接问题\n\n请查看浏览器控制台（F12）获取详细信息。');
                 return false;
             }
         }
@@ -2053,22 +2072,22 @@
             const syncStatusEl = document.getElementById('sync-status');
             const lastSyncTimeEl = document.getElementById('last-sync-time');
             
-            if (SYNC_MODE === 'local') {
-                syncStatusEl.textContent = '本地服务器';
-                syncStatusEl.className = 'text-blue-600 font-medium';
-            } else {
+            if (SYNC_MODE === 'gist') {
                 const token = localStorage.getItem('github_token') || '';
                 const gistId = localStorage.getItem(GIST_ID_KEY) || '';
                 if (token && gistId) {
-                    syncStatusEl.textContent = 'GitHub Gist';
+                    syncStatusEl.textContent = 'GitHub Gist 已连接';
                     syncStatusEl.className = 'text-green-600 font-medium';
                 } else if (token) {
-                    syncStatusEl.textContent = '已配置Token';
+                    syncStatusEl.textContent = '请先同步一次';
                     syncStatusEl.className = 'text-yellow-600 font-medium';
                 } else {
-                    syncStatusEl.textContent = '未连接';
-                    syncStatusEl.className = 'text-gray-600';
+                    syncStatusEl.textContent = '请配置 GitHub Token';
+                    syncStatusEl.className = 'text-red-600 font-medium';
                 }
+            } else {
+                syncStatusEl.textContent = '本地服务器';
+                syncStatusEl.className = 'text-blue-600 font-medium';
             }
             
             if (lastSyncTime) {
@@ -2081,39 +2100,16 @@
 
         // 显示云端配置提示
         function showCloudConfigTip() {
-            if (SYNC_MODE === 'local') {
-                showToast('请确保本地服务器已启动');
-            } else {
+            if (SYNC_MODE === 'gist') {
                 showGitHubTokenModal();
+            } else {
+                showToast('请确保本地服务器已启动');
             }
         }
 
-        // 检查云端服务器连接状态
-        async function checkCloudConnection() {
-            if (SYNC_MODE === 'local') {
-                try {
-                    const response = await fetch(`${LOCAL_SERVER_URL}/health`);
-                    if (response.ok) {
-                        updateSyncStatus();
-                        return true;
-                    }
-                } catch (error) {
-                    console.warn('无法连接到云端服务器');
-                }
-                const syncStatusEl = document.getElementById('sync-status');
-                if (syncStatusEl) {
-                    syncStatusEl.textContent = '服务器未连接';
-                    syncStatusEl.className = 'text-red-600 font-medium';
-                }
-                return false;
-            }
-        }
-
-        // 页面加载时检查连接
+        // 页面加载时更新状态
         window.addEventListener('load', () => {
-            if (SYNC_MODE === 'local') {
-                setTimeout(checkCloudConnection, 1000);
-            }
+            updateSyncStatus();
         });
 
         // 显示 GitHub Token 配置弹窗
