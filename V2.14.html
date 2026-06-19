@@ -348,7 +348,10 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">运营线路</label>
-                        <input type="text" name="line" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50">
+                        <select name="line" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50" id="vehicle-line-select">
+                            <option value="">请选择线路</option>
+                            <!-- 动态加载线路 -->
+                        </select>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">投入运营时间</label>
@@ -505,6 +508,17 @@
                 <p id="line-detail-page-vehicles-empty" class="text-gray-500 text-center py-8 hidden">暂无配车信息，可通过行程记录自动匹配或手动添加</p>
             </div>
 
+            <!-- 车型信息区域 -->
+            <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold">车型信息</h3>
+                </div>
+                <div id="line-detail-page-models" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- 动态加载车型信息 -->
+                </div>
+                <p id="line-detail-page-models-empty" class="text-gray-500 text-center py-8 hidden">暂无车型信息</p>
+            </div>
+
             <!-- 行程记录统计 -->
             <div class="bg-white rounded-xl shadow-sm p-6">
                 <h3 class="text-lg font-bold mb-4">本线路行程记录</h3>
@@ -617,6 +631,14 @@
                                     <label class="block text-sm font-medium text-gray-700 mb-1">载客量</label>
                                     <input type="number" name="capacity" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50" placeholder="例如：80">
                                 </div>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">适用线路</label>
+                                <select name="lineId" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50" id="vehicle-model-line-select">
+                                    <option value="">请选择线路（可选）</option>
+                                    <!-- 动态加载线路 -->
+                                </select>
                             </div>
                             
                             <div>
@@ -833,6 +855,9 @@
             loadLinesList();
             loadVehiclesList();
             loadLatestData();
+            
+            // 加载下拉列表
+            loadVehicleLineSelect();
             
             // 初始化轮播图
             setInterval(nextSlide, 5000);
@@ -1961,6 +1986,8 @@
             } else if (tabName === 'vehicle-model') {
                 document.getElementById('upload-tab-vehicle-model').classList.remove('bg-gray-200', 'text-gray-700');
                 document.getElementById('upload-tab-vehicle-model').classList.add('bg-primary', 'text-white');
+                // 加载车型上传的线路下拉列表
+                loadVehicleModelLineSelect();
             }
             
             // 切换内容区域
@@ -1968,6 +1995,40 @@
                 content.classList.add('hidden');
             });
             document.getElementById('upload-' + tabName).classList.remove('hidden');
+        }
+
+        // 加载车型上传的线路下拉列表
+        function loadVehicleModelLineSelect() {
+            const lines = JSON.parse(localStorage.getItem('bus_lines')) || [];
+            const approvedLines = lines.filter(l => l.status === 'approved');
+            const select = document.getElementById('vehicle-model-line-select');
+            
+            // 清空现有选项（保留默认选项）
+            select.innerHTML = '<option value="">请选择线路（可选）</option>';
+            
+            approvedLines.forEach(line => {
+                const option = document.createElement('option');
+                option.value = line.id;
+                option.textContent = `${line.lineCode} - ${line.lineName}`;
+                select.appendChild(option);
+            });
+        }
+
+        // 加载车辆表单的线路下拉列表
+        function loadVehicleLineSelect() {
+            const lines = JSON.parse(localStorage.getItem('bus_lines')) || [];
+            const approvedLines = lines.filter(l => l.status === 'approved');
+            const select = document.getElementById('vehicle-line-select');
+            
+            // 清空现有选项（保留默认选项）
+            select.innerHTML = '<option value="">请选择线路</option>';
+            
+            approvedLines.forEach(line => {
+                const option = document.createElement('option');
+                option.value = line.lineName;
+                option.textContent = `${line.lineCode} - ${line.lineName}`;
+                select.appendChild(option);
+            });
         }
 
         // 加载线路下拉列表
@@ -2184,6 +2245,7 @@
                 const imageInput = document.getElementById('vehicle-model-image');
                 
                 const isAdmin = isLogin && (currentUser.role === 'admin' || currentUser.username === 'admin');
+                const lineIdValue = formData.get('lineId');
                 const modelData = {
                     id: Date.now(),
                     modelName: formData.get('modelName'),
@@ -2192,6 +2254,7 @@
                     seats: parseInt(formData.get('seats')) || 0,
                     length: parseFloat(formData.get('length')) || 0,
                     capacity: parseInt(formData.get('capacity')) || 0,
+                    lineId: lineIdValue ? parseInt(lineIdValue) : null,
                     image: imageInput.dataset.base64 || '',
                     description: formData.get('description') || '',
                     status: isAdmin ? 'approved' : 'pending',
@@ -2611,6 +2674,37 @@
             } else {
                 tripsContainer.innerHTML = '';
                 tripsEmpty.classList.remove('hidden');
+            }
+            
+            // 车型信息
+            const vehicleModels = JSON.parse(localStorage.getItem('bus_vehicle_models') || '[]');
+            const lineModels = vehicleModels.filter(m => m.lineId === lineId && m.status === 'approved');
+            
+            const modelsContainer = document.getElementById('line-detail-page-models');
+            const modelsEmpty = document.getElementById('line-detail-page-models-empty');
+            
+            if (lineModels.length > 0) {
+                modelsEmpty.classList.add('hidden');
+                modelsContainer.innerHTML = lineModels.map(model => `
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <div class="flex items-center gap-3">
+                            <img src="${model.image || 'https://via.placeholder.com/80'}" class="w-16 h-16 rounded-lg object-cover">
+                            <div>
+                                <h4 class="font-medium">${model.modelName}</h4>
+                                <p class="text-sm text-gray-500">${model.brand}</p>
+                                <div class="flex gap-4 text-xs text-gray-400 mt-1">
+                                    <span>${model.powerType}</span>
+                                    <span>${model.seats}座</span>
+                                    <span>${model.length}m</span>
+                                </div>
+                            </div>
+                        </div>
+                        ${model.description ? `<p class="text-xs text-gray-500 mt-3">${model.description}</p>` : ''}
+                    </div>
+                `).join('');
+            } else {
+                modelsContainer.innerHTML = '';
+                modelsEmpty.classList.remove('hidden');
             }
             
             // 存储当前线路ID供上传使用
