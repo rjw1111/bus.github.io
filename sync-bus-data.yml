@@ -1,0 +1,125 @@
+name: Sync Bus Data
+
+on:
+  schedule:
+    # 每天 0:00 和 12:00 自动执行（UTC时间）
+    - cron: '0 0,12 * * *'
+  workflow_dispatch: # 允许手动触发
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Install dependencies
+        run: |
+          npm init -y
+          npm install node-fetch@2
+          
+      - name: Fetch bus data
+        run: |
+          node -e "
+          const fetch = require('node-fetch');
+          
+          async function fetchBusPediaData() {
+            console.log('Fetching data from buspedia.top...');
+            
+            try {
+              // 获取车型数据
+              const modelsUrl = 'https://buspedia.top/region/198/models';
+              const response = await fetch(modelsUrl, {
+                headers: {
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+              });
+              
+              const html = await response.text();
+              
+              // 解析车型数据
+              const models = [];
+              const yearRegex = /(\\d{4})年/g;
+              let yearMatch;
+              let currentYear = '';
+              
+              // 按年份分组
+              const lines = html.split('\\n');
+              lines.forEach(line => {
+                line = line.trim();
+                
+                // 检测年份
+                if (line.match(/^\\d{4}年$/)) {
+                  currentYear = line.replace('年', '');
+                  return;
+                }
+                
+                // 解析车型代码
+                const modelMatch = line.match(/^([A-Z]{2,}[A-Z0-9]+)/);
+                if (modelMatch && line.length > 3 && !line.includes('#')) {
+                  const modelCode = modelMatch[1];
+                  const rest = line.substring(modelCode.length).trim();
+                  
+                  models.push({
+                    modelCode: modelCode,
+                    fullName: rest || '',
+                    year: currentYear,
+                    status: 'approved',
+                    source: 'buspedia',
+                    updatedAt: new Date().toISOString()
+                  });
+                }
+              });
+              
+              // 去重
+              const uniqueModels = [];
+              const seen = new Set();
+              models.forEach(m => {
+                if (!seen.has(m.modelCode)) {
+                  seen.add(m.modelCode);
+                  uniqueModels.push(m);
+                }
+              });
+              
+              console.log('Parsed ' + uniqueModels.length + ' unique models');
+              
+              // 保存数据
+              const data = {
+                lastUpdate: new Date().toISOString(),
+                modelsCount: uniqueModels.length,
+                models: uniqueModels
+              };
+              
+              const fs = require('fs');
+              fs.writeFileSync('bus_data.json', JSON.stringify(data, null, 2));
+              console.log('Data saved to bus_data.json');
+              
+            } catch (error) {
+              console.error('Error fetching data:', error);
+              throw error;
+            }
+          }
+          
+          fetchBusPediaData();
+          "
+          
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add bus_data.json
+          git diff --quiet && git diff --staged --quiet || git commit -m "Update bus data from buspedia.top"
+          git push
+          
+      - name: Create summary
+        run: |
+          echo "## 数据同步完成" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "同步时间: $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "车型数量: $(cat bus_data.json | grep modelsCount | head -1)" >> $GITHUB_STEP_SUMMARY
