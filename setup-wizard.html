@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NCBUS 快速配置向导</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .step {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border-left: 5px solid #667eea;
+        }
+        .step-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .step-number {
+            width: 35px;
+            height: 35px;
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .step-content {
+            color: #555;
+            line-height: 1.8;
+        }
+        .step-content ol {
+            padding-left: 25px;
+            margin: 15px 0;
+        }
+        .step-content li {
+            margin: 10px 0;
+        }
+        code {
+            background: #e9ecef;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            color: #d63384;
+        }
+        .input-group {
+            margin: 15px 0;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #333;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin: 10px 0;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        .btn-success:hover {
+            background: #218838;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            text-align: center;
+            font-weight: bold;
+        }
+        .status.success {
+            background: #d4edda;
+            border: 2px solid #28a745;
+            color: #155724;
+        }
+        .status.error {
+            background: #f8d7da;
+            border: 2px solid #dc3545;
+            color: #721c24;
+        }
+        .status.pending {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            color: #856404;
+        }
+        .info-box {
+            background: #d1ecf1;
+            border: 2px solid #bee5eb;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+            color: #0c5460;
+        }
+        .info-box strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .progress {
+            width: 100%;
+            height: 10px;
+            background: #e9ecef;
+            border-radius: 5px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.5s;
+        }
+        .hidden {
+            display: none;
+        }
+        .token-preview {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            word-break: break-all;
+            margin-top: 10px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 NCBUS 快速配置向导</h1>
+        <p class="subtitle">只需3步，完成云端同步配置</p>
+        
+        <div class="progress">
+            <div class="progress-bar" id="progress-bar"></div>
+        </div>
+        
+        <!-- 步骤1：输入Token -->
+        <div class="step" id="step1">
+            <div class="step-title">
+                <span class="step-number">1</span>
+                配置 GitHub Token
+            </div>
+            <div class="step-content">
+                <div class="info-box">
+                    <strong>💡 什么是 Token？</strong>
+                    Token 是访问 GitHub 的密钥，用于将您的数据保存到 GitHub Gist。
+                </div>
+                
+                <div class="input-group">
+                    <label>粘贴您的 GitHub Token：</label>
+                    <input type="password" id="token-input" placeholder="github_pat_xxxxxxxxxxxx">
+                </div>
+                
+                <div id="token-status"></div>
+                
+                <button class="btn btn-primary" onclick="saveToken()">
+                    保存 Token
+                </button>
+                
+                <div class="info-box">
+                    <strong>📝 如何获取 Token？</strong>
+                    <ol>
+                        <li>打开 <a href="https://github.com/settings/tokens" target="_blank">GitHub Token 设置</a></li>
+                        <li>点击 "Generate new token (classic)"</li>
+                        <li>勾选 <code>gist</code> 权限</li>
+                        <li>点击 "Generate token"</li>
+                        <li>复制生成的 Token 粘贴到上方</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 步骤2：测试同步 -->
+        <div class="step hidden" id="step2">
+            <div class="step-title">
+                <span class="step-number">2</span>
+                测试云端同步
+            </div>
+            <div class="step-content">
+                <div id="sync-status"></div>
+                
+                <button class="btn btn-success" onclick="testSync()" id="sync-btn">
+                    🚀 测试同步到云端
+                </button>
+                
+                <button class="btn btn-primary" onclick="skipSync()" id="skip-btn" style="display:none;">
+                    跳过测试，直接打开应用
+                </button>
+            </div>
+        </div>
+        
+        <!-- 步骤3：完成 -->
+        <div class="step hidden" id="step3">
+            <div class="step-title">
+                <span class="step-number">✓</span>
+                配置完成！
+            </div>
+            <div class="step-content">
+                <div class="status success">
+                    🎉 云端同步已配置成功！
+                </div>
+                
+                <p style="text-align: center; color: #666; margin: 20px 0;">
+                    您可以直接打开 <code>V2.14.html</code> 使用云端同步功能了。
+                </p>
+                
+                <button class="btn btn-success" onclick="openApp()">
+                    🚀 打开 NCBUS 应用
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const GITHUB_GIST_API = 'https://api.github.com/gists';
+        const GIST_ID_KEY = 'bus_gist_id';
+        
+        // 保存 Token
+        function saveToken() {
+            const token = document.getElementById('token-input').value.trim();
+            
+            if (!token) {
+                showStatus('token-status', 'error', '请输入 Token！');
+                return;
+            }
+            
+            if (!token.startsWith('github_pat_')) {
+                showStatus('token-status', 'error', 'Token 格式不正确，应以 github_pat_ 开头');
+                return;
+            }
+            
+            // 保存到 localStorage
+            localStorage.setItem('github_token', token);
+            
+            showStatus('token-status', 'success', '✅ Token 保存成功！');
+            
+            // 显示预览
+            const preview = document.createElement('div');
+            preview.className = 'token-preview';
+            preview.textContent = '已保存: ' + token.substring(0, 15) + '...' + token.substring(token.length - 5);
+            document.getElementById('token-status').appendChild(preview);
+            
+            // 更新进度
+            updateProgress(66);
+            
+            // 隐藏步骤1，显示步骤2
+            document.getElementById('step1').classList.add('hidden');
+            document.getElementById('step2').classList.remove('hidden');
+            
+            // 清除旧 Gist ID，重新创建
+            localStorage.removeItem(GIST_ID_KEY);
+        }
+        
+        // 测试同步
+        async function testSync() {
+            const btn = document.getElementById('sync-btn');
+            const status = document.getElementById('sync-status');
+            
+            btn.disabled = true;
+            btn.textContent = '正在测试...';
+            
+            status.innerHTML = '<div class="status pending">正在连接到 GitHub...</div>';
+            
+            try {
+                const testData = {
+                    lines: [{
+                        id: 'test_' + Date.now(),
+                        name: '测试线路',
+                        testTime: new Date().toISOString()
+                    }],
+                    vehicles: [],
+                    vehicleModels: [],
+                    lineImages: [],
+                    trips: [],
+                    lastSyncTime: new Date().toISOString()
+                };
+                
+                const token = localStorage.getItem('github_token');
+                
+                // 创建 Gist
+                const response = await fetch(GITHUB_GIST_API, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `token ${token}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        description: 'NCBUS 公交档案站数据同步',
+                        public: false,
+                        files: {
+                            'bus_data.json': {
+                                content: JSON.stringify(testData, null, 2)
+                            }
+                        }
+                    })
+                });
+                
+                if (response.ok) {
+                    const gist = await response.json();
+                    localStorage.setItem(GIST_ID_KEY, gist.id);
+                    localStorage.setItem('last_sync_time', new Date().toISOString());
+                    
+                    status.innerHTML = '<div class="status success">✅ 同步成功！<br><small>数据已保存到 GitHub Gist</small></div>';
+                    
+                    updateProgress(100);
+                    
+                    setTimeout(() => {
+                        document.getElementById('step2').classList.add('hidden');
+                        document.getElementById('step3').classList.remove('hidden');
+                    }, 1500);
+                } else {
+                    const error = await response.json();
+                    status.innerHTML = `<div class="status error">❌ 同步失败<br><small>${error.message || response.statusText}</small></div>`;
+                    btn.disabled = false;
+                    btn.textContent = '重试';
+                }
+            } catch (error) {
+                status.innerHTML = `<div class="status error">❌ 连接失败<br><small>${error.message}</small></div>`;
+                btn.disabled = false;
+                btn.textContent = '重试';
+            }
+        }
+        
+        // 跳过测试
+        function skipSync() {
+            updateProgress(100);
+            document.getElementById('step2').classList.add('hidden');
+            document.getElementById('step3').classList.remove('hidden');
+        }
+        
+        // 打开应用
+        function openApp() {
+            window.location.href = 'V2.14.html';
+        }
+        
+        // 显示状态
+        function showStatus(elementId, type, message) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+        
+        // 更新进度条
+        function updateProgress(percent) {
+            document.getElementById('progress-bar').style.width = percent + '%';
+        }
+        
+        // 检查是否已配置
+        window.onload = function() {
+            const token = localStorage.getItem('github_token');
+            const gistId = localStorage.getItem(GIST_ID_KEY);
+            
+            if (token && gistId) {
+                // 已配置，直接跳到完成
+                updateProgress(100);
+                document.getElementById('step1').classList.add('hidden');
+                document.getElementById('step2').classList.add('hidden');
+                document.getElementById('step3').classList.remove('hidden');
+            } else if (token) {
+                // 有 Token 但没有 Gist ID
+                updateProgress(66);
+                document.getElementById('step1').classList.add('hidden');
+                document.getElementById('step2').classList.remove('hidden');
+            }
+        };
+    </script>
+</body>
+</html>

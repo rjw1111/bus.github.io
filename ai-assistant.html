@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NCBUS AI 助手</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        /* 容器 */
+        .ai-container {
+            max-width: 800px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        /* 头部 */
+        .ai-header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .ai-header img {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+        }
+        .ai-header h1 {
+            font-size: 20px;
+            color: #333;
+        }
+        .ai-header p {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        /* 消息列表 */
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        /* 消息气泡 */
+        .message {
+            max-width: 80%;
+            padding: 15px 20px;
+            border-radius: 20px;
+            line-height: 1.6;
+        }
+        .user-message {
+            align-self: flex-end;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 5px;
+        }
+        .ai-message {
+            align-self: flex-start;
+            background: rgba(255, 255, 255, 0.95);
+            color: #333;
+            border-bottom-left-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .ai-avatar {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        
+        /* 输入区域 */
+        .input-container {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 20px;
+            display: flex;
+            gap: 10px;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+        }
+        .input-container textarea {
+            flex: 1;
+            padding: 12px 18px;
+            border: 2px solid #e9ecef;
+            border-radius: 25px;
+            resize: none;
+            font-size: 15px;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+        .input-container textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .input-container button {
+            padding: 12px 25px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            font-size: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .input-container button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        .input-container button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        /* 加载动画 */
+        .loading {
+            display: flex;
+            gap: 8px;
+            padding: 15px 20px;
+        }
+        .loading-dot {
+            width: 10px;
+            height: 10px;
+            background: #667eea;
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out;
+        }
+        .loading-dot:nth-child(1) { animation-delay: 0s; }
+        .loading-dot:nth-child(2) { animation-delay: 0.2s; }
+        .loading-dot:nth-child(3) { animation-delay: 0.4s; }
+        
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+        
+        /* 预设问题 */
+        .quick-questions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.1);
+        }
+        .quick-btn {
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.8);
+            border: none;
+            border-radius: 20px;
+            font-size: 13px;
+            color: #666;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .quick-btn:hover {
+            background: white;
+            color: #667eea;
+        }
+        
+        /* API 配置 */
+        .api-config {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+            z-index: 100;
+        }
+        .api-config h3 {
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        .api-config select {
+            width: 200px;
+            padding: 8px;
+            border: 2px solid #e9ecef;
+            border-radius: 5px;
+            font-size: 13px;
+        }
+        .api-config input {
+            width: 200px;
+            padding: 8px;
+            border: 2px solid #e9ecef;
+            border-radius: 5px;
+            font-size: 12px;
+            font-family: monospace;
+            margin-top: 10px;
+        }
+        .api-config button {
+            width: 100%;
+            padding: 8px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+        
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+        }
+        
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .message {
+                max-width: 95%;
+            }
+            .api-config {
+                position: static;
+                margin: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="ai-container">
+        <!-- 头部 -->
+        <div class="ai-header">
+            <div class="ai-avatar">🤖</div>
+            <div>
+                <h1>NCBUS AI 助手</h1>
+                <p>帮您查询公交线路、车辆信息</p>
+            </div>
+        </div>
+        
+        <!-- 预设问题 -->
+        <div class="quick-questions">
+            <button class="quick-btn" onclick="sendQuickQuestion('有哪些公交线路？')">有哪些公交线路？</button>
+            <button class="quick-btn" onclick="sendQuickQuestion('如何查询车辆位置？')">如何查询车辆位置？</button>
+            <button class="quick-btn" onclick="sendQuickQuestion('最近更新的线路是哪条？')">最近更新的线路是哪条？</button>
+            <button class="quick-btn" onclick="sendQuickQuestion('车辆档案怎么上传？')">车辆档案怎么上传？</button>
+        </div>
+        
+        <!-- 消息列表 -->
+        <div class="messages-container" id="messages">
+            <!-- 欢迎消息 -->
+            <div class="ai-message">
+                <div class="ai-avatar">🤖</div>
+                <p>您好！我是 NCBUS AI 助手，请问有什么可以帮助您的？</p>
+                <p style="margin-top: 10px; font-size: 14px; color: #666;">您可以询问：</p>
+                <ul style="font-size: 14px; color: #666; padding-left: 20px; margin-top: 5px;">
+                    <li>公交线路信息</li>
+                    <li>车辆档案查询</li>
+                    <li>行程记录</li>
+                    <li>系统使用帮助</li>
+                </ul>
+            </div>
+        </div>
+        
+        <!-- 输入区域 -->
+        <div class="input-container">
+            <textarea id="user-input" placeholder="输入您的问题..." onkeydown="handleKeydown(event)"></textarea>
+            <button id="send-btn" onclick="sendMessage()">发送</button>
+        </div>
+    </div>
+    
+    <!-- API 配置弹窗 -->
+    <div id="config-modal" style="display: none;">
+        <div style="position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;">
+            <div style="background: white; padding: 30px; border-radius: 15px; max-width: 400px; width: 90%;">
+                <h3 style="margin-bottom: 20px; color: #333;">配置 AI API</h3>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; font-size: 14px;">选择 AI 服务：</label>
+                    <select id="ai-service" style="width: 100%; padding: 10px; border: 2px solid #e9ecef; border-radius: 8px;">
+                        <option value="openai">OpenAI (需要 API Key)</option>
+                        <option value="baidu">百度文心一言 (需要 API Key)</option>
+                        <option value="qwen">阿里云通义千问 (需要 API Key)</option>
+                        <option value="mock" selected>模拟模式 (无需配置)</option>
+                    </select>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; font-size: 14px;">API Key（如需要）：</label>
+                    <input type="password" id="api-key" placeholder="输入您的 API Key" style="width: 100%; padding: 10px; border: 2px solid #e9ecef; border-radius: 8px;">
+                </div>
+                
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="saveConfig()" style="flex: 1; padding: 12px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer;">保存</button>
+                    <button onclick="closeConfig()" style="flex: 1; padding: 12px; background: #e9ecef; color: #666; border: none; border-radius: 8px; cursor: pointer;">取消</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // AI 配置
+        const AI_CONFIG = {
+            service: localStorage.getItem('ai_service') || 'mock',
+            apiKey: localStorage.getItem('ai_api_key') || ''
+        };
+        
+        // 模拟 AI 响应（用于演示）
+        const mockResponses = [
+            {
+                pattern: /线路|公交|路线|站点/,
+                response: '目前系统中有以下公交线路：\n\n1. 1路：火车站 ↔ 汽车站\n2. 2路：市中心 ↔ 工业园区\n3. 3路：大学城 ↔ 商业区\n\n您可以在"线路档案"页面查看详细信息。'
+            },
+            {
+                pattern: /车辆|车|车型/,
+                response: '系统中共有 ' + getVehicleCount() + ' 辆车辆档案。\n\n您可以：\n- 在"车辆档案"页面查看所有车辆\n- 通过"上传中心"上传新车\n- 使用车型筛选功能查找特定车型'
+            },
+            {
+                pattern: /行程|记录|历史/,
+                response: '最近的行程记录：\n\n1. 1路公交车 - 2024-01-15 08:30\n2. 2路公交车 - 2024-01-15 09:15\n\n您可以在"行程记录"页面查看完整的历史记录。'
+            },
+            {
+                pattern: /帮助|使用|怎么/,
+                response: 'NCBUS 公交档案站使用指南：\n\n📋 主要功能：\n1. 线路档案 - 查看和管理公交线路\n2. 车辆档案 - 管理车辆信息\n3. 行程记录 - 记录公交行程\n4. 上传中心 - 上传线路图片和车型\n5. 管理中心 - 审核和管理数据\n\n💡 提示：使用右上角搜索功能快速查找信息。'
+            },
+            {
+                pattern: /最近|更新|最新/,
+                response: '最近更新的内容：\n\n1. 新增线路：5路（科技园区线）\n2. 新增车辆：金龙 XMQ6127\n3. 更新时间：2024-01-15\n\n点击"从云端拉取"获取最新数据。'
+            },
+            {
+                pattern: /同步|云端/,
+                response: '云端同步功能说明：\n\n☁️ 同步到云端：将本地数据上传到 GitHub\n📥 从云端拉取：下载最新数据到本地\n\n建议定期同步，确保数据不丢失。'
+            },
+            {
+                pattern: /管理员|审核/,
+                response: '管理员功能包括：\n\n🔒 审核功能：\n- 审核新上传的线路\n- 审核车辆档案\n- 审核车型信息\n\n📊 统计功能：\n- 查看数据统计\n- 管理用户权限'
+            }
+        ];
+        
+        // 获取车辆数量
+        function getVehicleCount() {
+            const vehicles = JSON.parse(localStorage.getItem('bus_vehicles') || '[]');
+            return vehicles.length || '若干';
+        }
+        
+        // 获取线路数量
+        function getLineCount() {
+            const lines = JSON.parse(localStorage.getItem('bus_lines') || '[]');
+            return lines.length || '若干';
+        }
+        
+        // 发送消息
+        async function sendMessage() {
+            const input = document.getElementById('user-input');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            // 添加用户消息
+            addMessage(message, 'user');
+            input.value = '';
+            
+            // 显示加载状态
+            addLoading();
+            
+            // 获取 AI 响应
+            const response = await getAIResponse(message);
+            
+            // 移除加载状态
+            removeLoading();
+            
+            // 添加 AI 响应
+            addMessage(response, 'ai');
+            
+            // 滚动到底部
+            scrollToBottom();
+        }
+        
+        // 发送预设问题
+        function sendQuickQuestion(question) {
+            document.getElementById('user-input').value = question;
+            sendMessage();
+        }
+        
+        // 添加消息
+        function addMessage(text, type) {
+            const messages = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            
+            if (type === 'user') {
+                messageDiv.className = 'message user-message';
+                messageDiv.innerHTML = `<p>${text}</p>`;
+            } else {
+                messageDiv.className = 'message ai-message';
+                messageDiv.innerHTML = `
+                    <div class="ai-avatar">🤖</div>
+                    <p>${formatResponse(text)}</p>
+                `;
+            }
+            
+            messages.appendChild(messageDiv);
+        }
+        
+        // 添加加载动画
+        function addLoading() {
+            const messages = document.getElementById('messages');
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'ai-message loading';
+            loadingDiv.innerHTML = `
+                <div class="ai-avatar">🤖</div>
+                <div style="display: flex; gap: 8px;">
+                    <span class="loading-dot"></span>
+                    <span class="loading-dot"></span>
+                    <span class="loading-dot"></span>
+                </div>
+            `;
+            loadingDiv.id = 'loading-indicator';
+            messages.appendChild(loadingDiv);
+        }
+        
+        // 移除加载动画
+        function removeLoading() {
+            const loading = document.getElementById('loading-indicator');
+            if (loading) loading.remove();
+        }
+        
+        // 格式化响应
+        function formatResponse(text) {
+            return text.replace(/\n/g, '<br>');
+        }
+        
+        // 获取 AI 响应
+        async function getAIResponse(question) {
+            if (AI_CONFIG.service === 'mock') {
+                // 模拟模式
+                await delay(1000);
+                return getMockResponse(question);
+            }
+            
+            // 实际 AI API 调用
+            return await callAIAPI(question);
+        }
+        
+        // 模拟响应
+        function getMockResponse(question) {
+            // 查找匹配的响应
+            for (const item of mockResponses) {
+                if (item.pattern.test(question)) {
+                    return item.response;
+                }
+            }
+            
+            // 默认响应
+            return `您问的是："${question}"\n\n我可以帮您查询公交线路、车辆信息、行程记录等。请尝试问我一些具体的问题，例如：\n- 有哪些公交线路？\n- 如何上传车辆档案？\n- 最近更新了什么？`;
+        }
+        
+        // 调用实际 AI API
+        async function callAIAPI(question) {
+            try {
+                let url, headers, body;
+                
+                switch (AI_CONFIG.service) {
+                    case 'openai':
+                        url = 'https://api.openai.com/v1/chat/completions';
+                        headers = {
+                            'Authorization': `Bearer ${AI_CONFIG.apiKey}`,
+                            'Content-Type': 'application/json'
+                        };
+                        body = JSON.stringify({
+                            model: 'gpt-3.5-turbo',
+                            messages: [{ role: 'user', content: question }],
+                            temperature: 0.7
+                        });
+                        break;
+                    case 'baidu':
+                        url = 'https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions';
+                        headers = {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        };
+                        body = JSON.stringify({
+                            apiKey: AI_CONFIG.apiKey,
+                            messages: [{ role: 'user', content: question }]
+                        });
+                        break;
+                    case 'qwen':
+                        url = 'https://dashscope.io/api/text-generation';
+                        headers = {
+                            'Authorization': `Bearer ${AI_CONFIG.apiKey}`,
+                            'Content-Type': 'application/json'
+                        };
+                        body = JSON.stringify({
+                            model: 'qwen-7b',
+                            input: question
+                        });
+                        break;
+                    default:
+                        return '未知的 AI 服务配置';
+                }
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers,
+                    body
+                });
+                
+                const data = await response.json();
+                
+                if (data.choices && data.choices[0] && data.choices[0].message) {
+                    return data.choices[0].message.content;
+                } else if (data.result) {
+                    return data.result;
+                } else {
+                    return 'API 响应格式错误';
+                }
+            } catch (error) {
+                console.error('AI API 调用失败:', error);
+                return `AI 服务调用失败，请检查您的 API Key 是否正确配置。\n\n错误：${error.message}`;
+            }
+        }
+        
+        // 延迟函数
+        function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+        
+        // 滚动到底部
+        function scrollToBottom() {
+            const messages = document.getElementById('messages');
+            messages.scrollTop = messages.scrollHeight;
+        }
+        
+        // 键盘事件
+        function handleKeydown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+        
+        // 显示配置弹窗
+        function showConfig() {
+            document.getElementById('config-modal').style.display = 'block';
+        }
+        
+        // 关闭配置弹窗
+        function closeConfig() {
+            document.getElementById('config-modal').style.display = 'none';
+        }
+        
+        // 保存配置
+        function saveConfig() {
+            const service = document.getElementById('ai-service').value;
+            const apiKey = document.getElementById('api-key').value;
+            
+            localStorage.setItem('ai_service', service);
+            localStorage.setItem('ai_api_key', apiKey);
+            
+            AI_CONFIG.service = service;
+            AI_CONFIG.apiKey = apiKey;
+            
+            closeConfig();
+            alert('配置已保存！');
+        }
+        
+        // 添加配置按钮到页面
+        const configBtn = document.createElement('button');
+        configBtn.innerHTML = '⚙️';
+        configBtn.style.position = 'fixed';
+        configBtn.style.top = '20px';
+        configBtn.style.right = '20px';
+        configBtn.style.width = '50px';
+        configBtn.style.height = '50px';
+        configBtn.style.borderRadius = '50%';
+        configBtn.style.border = 'none';
+        configBtn.style.background = 'white';
+        configBtn.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
+        configBtn.style.fontSize = '20px';
+        configBtn.style.cursor = 'pointer';
+        configBtn.onclick = showConfig;
+        document.body.appendChild(configBtn);
+        
+        // 页面加载完成后的操作
+        document.addEventListener('DOMContentLoaded', () => {
+            scrollToBottom();
+        });
+    </script>
+</body>
+</html>
